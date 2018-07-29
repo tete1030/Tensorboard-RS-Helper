@@ -1,11 +1,13 @@
 # Tensorboard Runs Selection Helper
 
-## Intro
-
 A TamperMonkey userscript helping you organize Tensorboard runs
+
+## Introduction
 
 Selecting runs in tensorboard one by one is totally a disaster when you have too many runs listed. In most cases, you only want
 to toggle each experiment as a whole.
+
+**Only Tensorboard 1.9.0 is tested**
 
 &nbsp; &nbsp; &nbsp; **Before** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; **After**
 
