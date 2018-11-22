@@ -10,7 +10,7 @@
 // @require      https://code.jquery.com/ui/1.12.1/jquery-ui.min.js
 // @run-at       document-end
 // @grant        none
-// @description  Require tensorboard==1.9.0
+// @description  Require tensorboard==1.9.0 || 1.12.0
 // @description  Only support scalar dashboard currently
 // ==/UserScript==
 
@@ -70,6 +70,21 @@
     const MODE_MULTI_RUN = "mr";
 
     function TBSelHelper() {
+        if (typeof window.W != "undefined" && typeof window.W.addStorageListener != "undefined") {
+            console.log("Tensorboard 1.12.0");
+            window.tf_storage = window.W;
+        }
+        var is_new_version = false;
+        if ($("tf-multi-checkbox #runs-regex").length > 0) {
+            console.warn("Old version detected");
+            is_new_version = false;
+        } else if ($("tf-multi-checkbox #names-regex").length > 0) {
+            console.warn("New version detected");
+            is_new_version = true;
+        } else {
+            console.warn("Unknown version");
+        }
+
         let _helper = this;
         let $scalars_dashboard = $(".dashboard-container[data-dashboard='scalars']").eq(0);
         let $sidebar = $scalars_dashboard.find("#sidebar .sidebar-section").eq(0);
@@ -100,12 +115,12 @@
                 let computeNamesMatchingRegex_ori = multi_check_box.computeNamesMatchingRegex;
                 let computeOutSelected_ori = multi_check_box.computeOutSelected;
                 let _checkboxChange_ori = multi_check_box._checkboxChange;
-                let _isolateRun_ori = multi_check_box._isolateRun;
+                let _isolateRun_ori = multi_check_box[!is_new_version?"_isolateRun":"_isolateName"];
 
                 // computeNamesMatchingRegex is for selecting visible runs in the selector
                 multi_check_box.computeNamesMatchingRegex = function(__, ___) {
                     if (_helper.mode == MODE_INDIVIDUAL_RUN) return computeNamesMatchingRegex_ori.call(this, __, ___);
-                    var regex = this.regex;
+                    var regex = this[!is_new_version?"regex":"_regex"];
                     return this.names.filter(function(n) {
                         return (regex == null || regex.test(n)) && (
                             (_helper.expanded && n.startsWith(_helper.expanded+"/")) ||
@@ -117,8 +132,8 @@
                 multi_check_box.computeOutSelected = function(__, ___) {
                     if (_helper.mode == MODE_INDIVIDUAL_RUN) return computeOutSelected_ori.call(this, __, ___);
                     let namesMatchingRegex = this.namesMatchingRegex;
-                    var runSelectionState = this.runSelectionState;
-                    var num = this.maxRunsToEnableByDefault;
+                    var runSelectionState = this[!is_new_version?"runSelectionState":"selectionState"];
+                    var num = this[!is_new_version?"maxRunsToEnableByDefault":"maxNamesToEnableByDefault"];
                     let childNames = this.names.filter(function(n) {
                         return namesMatchingRegex.some(function(pn) {
                             if(n.length < pn.length) return false;
@@ -137,33 +152,31 @@
                     _checkboxChange_ori.call(this, e);
                     let target_name = e.target.name;
                     if (!isParent(target_name)) return;
-                    let runSelectionState = this.runSelectionState;
+                    var runSelectionState = _.clone(this[!is_new_version?"runSelectionState":"selectionState"]);
 
-                    var selectionState = {};
                     this.names.forEach(function(n) {
                         if (n === target_name || (n.length > target_name.length && n.startsWith(target_name + "/"))) {
-                            selectionState[n] = e.target.checked;
-                        } else {
-                            selectionState[n] = runSelectionState[n];
+                            runSelectionState[n] = e.target.checked;
                         }
                     });
-                    this.runSelectionState = selectionState;
+                    this[!is_new_version?"runSelectionState":"selectionState"] = runSelectionState;
+
                 };
                 // Spread the selection to its child runs
-                multi_check_box._isolateRun = function(e) {
+                multi_check_box[!is_new_version?"_isolateRun":"_isolateName"] = function(e) {
                     if (_helper.mode == MODE_INDIVIDUAL_RUN) return _isolateRun_ori.call(this, e);
                     _isolateRun_ori.call(this, e);
                     let target_name = e.target.parentElement.name;
                     if (!isParent(target_name)) return;
-                    var selectionState = {};
+                    var runSelectionState = {};
                     this.names.forEach(function(n) {
                         if (n === target_name || (n.length > target_name.length && n.startsWith(target_name + "/"))) {
-                            selectionState[n] = true;
+                            runSelectionState[n] = true;
                         } else {
-                            selectionState[n] = false;
+                            runSelectionState[n] = false;
                         }
                     });
-                    this.runSelectionState = selectionState;
+                    this[!is_new_version?"runSelectionState":"selectionState"] = selectionState;
                 };
 
                 var last_names = [];
@@ -174,12 +187,11 @@
                         console.log("New name: ", newchildren);
                         last_names.clear();
                         last_names.set(this.names);
-                        var runSelectionState = this.runSelectionState;
+                        var runSelectionState = _.clone(this[!is_new_version?"runSelectionState":"selectionState"]);
                         newchildren.forEach(n => {
                             runSelectionState[n] = runSelectionState[getParentName(n)];
                         });
-                        this.runSelectionState = {};
-                        this.runSelectionState = runSelectionState;
+                        this[!is_new_version?"runSelectionState":"selectionState"] = runSelectionState;
                     }
                 }
                 multi_check_box._addComplexObserverEffect("_syncChildrenRuns(names.*)");
@@ -211,7 +223,8 @@
             }
             setExpanded(tf_storage.getString(STORAGE_EXPANDED) || "");
 
-            _helper.$runs = $(multi_check_box).find("#outer-container div.run-row .item-label-container");
+            let run_selector = "#outer-container div." + (!is_new_version?"run-row":"name-row") + " .item-label-container";
+            _helper.$runs = $(multi_check_box).find(run_selector);
             function updateRunsElement() {
                 _helper.$runs.off(".updateclickevent")
                 _helper.$runs.on("mousedown.updateclickevent", function(e) {this._drag = false;});
@@ -235,7 +248,7 @@
             }
 
             $(multi_check_box).on("dom-change", function(e){
-                _helper.$runs = $(multi_check_box).find("#outer-container div.run-row .item-label-container");
+                _helper.$runs = $(multi_check_box).find(run_selector);
                 updateRunsElement();
             });
         }
@@ -252,10 +265,17 @@
                 .css("width", tf_storage.getString(STORAGE_SIDEBAR_WIDTH) || "")
                 .resizable({
                 handles: "w,e",
-                stop: function (event, ui) {
-                    if (ui.size.width > 20) {
+                resize: function (event, ui) {
+                    if (ui.size.width >= 20) {
                         ui.element.css("max-width", "unset");
                         ui.element.css("min-width", "unset");
+                        if (is_new_version) {
+                            ui.element.css("flex-basis", ui.size.width + "px");
+                        }
+                    }
+                },
+                stop: function (event, ui) {
+                    if (ui.size.width >= 20) {
                         tf_storage.setString(STORAGE_SIDEBAR_MAX_WIDTH, "unset");
                         tf_storage.setString(STORAGE_SIDEBAR_MIN_WIDTH, "unset");
                         tf_storage.setString(STORAGE_SIDEBAR_WIDTH, ui.size.width);
@@ -263,6 +283,9 @@
                         ui.element.css("max-width", "");
                         ui.element.css("min-width", "");
                         ui.element.css("width", "");
+                        if (is_new_version) {
+                            ui.element.css("flex-basis", "");
+                        }
                         tf_storage.setString(STORAGE_SIDEBAR_MAX_WIDTH, "");
                         tf_storage.setString(STORAGE_SIDEBAR_MIN_WIDTH, "");
                         tf_storage.setString(STORAGE_SIDEBAR_WIDTH, "");
