@@ -7,7 +7,7 @@ A TamperMonkey userscript helping you organize Tensorboard runs
 Selecting runs in tensorboard one by one is totally a disaster when you have too many runs listed. In most cases, you only want
 to toggle each experiment as a whole.
 
-**Only Tensorboard 1.9.0 is tested**
+**Only Tensorboard 1.9.0 and 1.12.0 are tested**
 
 &nbsp; &nbsp; &nbsp; **Before** &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; **After**
 
